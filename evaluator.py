@@ -13,12 +13,19 @@ class Evaluator(ABC):
     def evaluate(self, all_truths: MultiLocationDiseaseTimeSeries, all_forecasts: MultiLocationForecast) -> MultiLocationErrorTimeSeries:
         pass
 
+    def get_name(self) -> str:
+        return self.__class__.__name__
+
 
 class ComponentBasedEvaluator(Evaluator):
-    def __init__(self, errorFunc, timeAggregationFunc, regionAggregationFunc):
+    def __init__(self, name, errorFunc, timeAggregationFunc, regionAggregationFunc):
+        self._name = name
         self._errorFunc = errorFunc
         self._timeAggregationFunc = timeAggregationFunc
         self._regionAggregationFunc = regionAggregationFunc
+
+    def get_name(self):
+        return self._name
 
     def evaluate(self, all_truths: MultiLocationDiseaseTimeSeries, all_forecasts: MultiLocationForecast) -> MultiLocationErrorTimeSeries:
 
