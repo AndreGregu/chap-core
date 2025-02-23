@@ -31,20 +31,20 @@ class EvaluationPresenter:
         for evaluator in self._evaluator_suite:
             results : MultiLocationErrorTimeSeries = evaluator.evaluate(observations, samples)
             print(f"***{evaluator.get_name()}***")
-            if len(results.timeseries)==1 and len(list(results.timeseries.values())[0].observations)==1:
+            if results.num_locations()==1 and results.num_timeperiods()==1:
                 #one value across time and regions
-                print(f"{list(results.timeseries.keys())[0]} - {list(results.timeseries.values())[0].observations[0].time_period} : {list(results.timeseries.values())[0].observations[0].value}")
-            elif len(results.timeseries)==1:
+                print(f"{results.get_the_only_location()} - {results.get_the_only_timeseries().observations[0].time_period} : {results.get_the_only_timeseries().observations[0].value}")
+            elif results.num_locations()==1:
                 #across regions, multiple time points
-                raise
-            elif len(list(results.timeseries.values())[0].observations)==1:
+                raise NotImplementedError("not yes implemented - should be easy")
+            elif results.num_timeperiods()==1:
                 #multiple regions, aggregated across time
-                for region_name, timeseries in results.timeseries.items():
+                for region_name, timeseries in results.timeseries_dict.items():
                     print(f"{region_name}: {timeseries.observations[0].value}")
             else:
                 #one value per region per time
-                print(f"Region\t{'\t'.join([str(t.time_period) for t in list(results.timeseries.values())[0].observations])}")
-                for region_name, timeseries in results.timeseries.items():
+                print(f"Region\t{'\t'.join([str(t.time_period) for t in list(results.timeseries_dict.values())[0].observations])}")
+                for region_name, timeseries in results.timeseries_dict.items():
                     print(f"{region_name}: {'\t'.join([str(t.value) for t in timeseries.observations])}")
 
 chosen_evaluator_euite_key = "mix"

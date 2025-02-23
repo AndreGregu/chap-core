@@ -25,7 +25,7 @@ samples = MultiLocationForecast(
         Forecast(predictions=samples)})
 
 observations = MultiLocationDiseaseTimeSeries(
-    timeseries={locations[0]:
+    timeseries_dict={locations[0]:
         DiseaseTimeSeries(observations=[
             DiseaseObservation(time_period="2023-07", disease_cases=326),
             DiseaseObservation(time_period="2023-08", disease_cases=452),

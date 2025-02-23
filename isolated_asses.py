@@ -13,7 +13,7 @@ from representations import DiseaseObservation, Forecast, MultiLocationDiseaseTi
 
 
 observations = MultiLocationDiseaseTimeSeries(
-    timeseries={
+    timeseries_dict={
     "Oslo":
         DiseaseTimeSeries(observations=[
             DiseaseObservation(time_period="2020-01", disease_cases=0),
