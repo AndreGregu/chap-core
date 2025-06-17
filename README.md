@@ -1,9 +1,9 @@
 # CHAP-compatible example of model assessment 
-This tutorial provides a guide to and examples of how to do model assessment in CHAP with user-defined evaluation criteria in python.
+This tutorial provides a guide to and examples of how to do develop a new (custom) evaluation metric that can be used for model evaluation in CHAP.
 
 
 ## Representations of Observations and Predictions
-Observations and predictions are represented using a nested dataclass structure. This design choice reflects the nature of the data: each datapoint is associated with a specific time period, region, and value (which may be a single value or a set of samples).
+Observations and predictions are each represented using a nested dataclass structure. This design choice reflects the nature of the data: each datapoint connects a specific time period, region, and value (which may be a single value or a set of samples).
 
 To avoid a flat and error-prone representation, and to increase flexibility, the following structure is used:
 
@@ -14,11 +14,11 @@ To avoid a flat and error-prone representation, and to increase flexibility, the
 3. **RegionDict**: A dictionary mapping region identifiers to their corresponding `TimeSeries`.
 
 
-The representation of diseasecases and error includes utility methods which also allows for supports tasks like reordering, transforming, or flattening the data.
+The representation of disease cases and error includes utility methods which streamlines tasks like reordering, transforming, or flattening the data.
 
 
 
-An example of the structure for forcast data:
+An example of the structure for forecast data:
 ```python
 
 #Forecasts
@@ -55,22 +55,22 @@ The example uses arbitrary disease data and predictions in the nested format, th
 
 
 ## Manually writing custom evaluators
-Sometimes one would want to define some custom evaluation criteria. This is possible in CHAP using the previously discussed observation and prediction representation and the evaluator interface found in `evaluator.py`
+The Chap platform can be extended with new (custom) evaluation criteria that based on data in the previously discussed observation and prediction representation defines a new computation according to the evaluator interface found in `evaluator.py`
 
 
 
 ### The Evaluator interface
-For an evaluator to be CHAP-compatible, it needs to be a instance of the Evaluator abstract class. The abstract class consists of the following two methods:
+For an evaluator to be CHAP-compatible, it needs to implement the evaluate interface defined in the Evaluator abstract class. The abstract class consists of the following two methods:
 
 
-1. **evaluate**: A method which takes true values and predictions as arguments, and returns a representation of the model’s error. 
+1. **evaluate**: A method which takes full datastructures for true values and predictions as arguments, and returns a representation of the model’s error. Note that the error data structure can be aggregated over regions or time (does not necessarily contain values for individual regions and time points of the data being evaluated).  
 ```python
     def evaluate(self, all_truths: MultiLocationDiseaseTimeSeries, all_forecasts: MultiLocationForecast) -> MultiLocationErrorTimeSeries:
         pass
 ```
 
 
-2. **get_name**: A method which returns the name of the evaluator
+2. **get_name**: A method which returns the name of the evaluator (to be shown as a name for the defined metric).
 
 ```python
     def get_name(self) -> str:
@@ -79,13 +79,13 @@ For an evaluator to be CHAP-compatible, it needs to be a instance of the Evaluat
 
 
 #### Example of Evaluator classes
-The file `example_evaluator.py` contains an example of a custom evaluator called `MAEonMeanPredictions` which returns the Mean Absolute Error (MAE) for each region based on the mean of the prediction samples.
+The file `example_evaluator.py` contains an example of a custom evaluator called `MAEonMeanPredictions` which returns the Mean Absolute Error (MAE) for each region across time based on the observed value versus the mean of the prediction samples.
 
 
 ### The generic component-based evaluator
-In the file `evaluator.py` it is also included an Evaluator subclass called `ComponentBasedEvaluator`. This class is typically used as-is and is not meant to be modified directly. Instead, you define your own custom components:
+The file `evaluator.py` also includes an Evaluator subclass called `ComponentBasedEvaluator`, which allows to define a new evaluation metric by creating and combining components representing distinct aspects of evaluation. This class is typically used as-is and is not meant to be modified directly. Instead, you define your own custom components that you pass in to its init-method:
 
-- `errorFunc`: a loss function that computes the error between predicted and true values.
+- `errorFunc`: a loss function that computes the error between predicted and true values for a single region and time point.
 
 - `timeAggregationFunc`: a function that aggregates errors over time within a single region.
 
@@ -107,7 +107,7 @@ This modular approach provides a flexible and reusable evaluation logic. Example
 
 
 ## Evaluator Suites
-In many cases, it's useful to evaluate a model using multiple error metrics simultaneously. Additionally, how these metrics are presented can vary depending on the use case. To support this, we use **evaluator suites** — collections of evaluators grouped in a dictionary and processed together.
+In many cases, it's useful to evaluate a model using multiple complementary error metrics simultaneously. Additionally, how these metrics are presented can vary depending on the use case. To support this, we use **evaluator suites** — collections of evaluators grouped in a dictionary and processed together.
 
 The class `EvaluationPresenter` in `example_evaluator_suites.py` demonstrates how to run several evaluators at once and present their results in a structured and readable format. The example also shows how to define multiple suites, allowing users to choose between predefined sets of evaluators depending on their evaluation needs.
 
@@ -115,7 +115,7 @@ This design makes it easy to compare models using a variety of metrics and prese
 
 
 ## Evaluating on real data
-We have also included some examples of how to use this format to evaluate models trained on real data. 
+This repository also includes a few illustrative examples of how to use this format to evaluate models trained on real data. For real usage with Chap, see a separate documentation of how an evaluation metric defined according to the interfaces described here (that follows the Evaluator abstract class) can be easily integrated into Chap and used as metric for any evaluation performed in that platform.
 
 
 ### Evaluating `minimalist_example` with custom evaluator
