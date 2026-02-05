@@ -4,7 +4,12 @@ focusing on what you will need to understand in order to do forecasting of clima
 It thus selects a set of topics needed for disease forecasting, while mostly introducing these concepts in generality.
 
 The material is organised around hands-on tutorials, where you will learn how to practically develop models while learning the theoretical underpinnings.
+We provide guides and example models in both *Python* and *R*.
 
+The hands-on work relies on Chap, which is designed to allow model developers to focus on their core modelling idea, and then rely on Chap for rich support of data, evaluation, interoperability and more. 
+This helps you learn effectively - by being hands-on and concrete, while still focusing on the core concepts.  
+
+If you are already experienced in spatiotemporal modelling, and just want to integrate a model of yours with a professional framework, please see our separate guide for [experienced modellers](experienced_modeller.md).
 # Prerequisites
 
 - Programming: you must know some programming, in either Python or R, to be able to follow our exercises and tutorials. 
@@ -137,7 +142,7 @@ If you have limited prior experience with statistics or machine learning, please
 
 # Motivation
 Our tutorial aims to introduce aspects of statistical modelling and machine learning that are useful specifically for developing, evaluating and later operationalising forecasting models. Our pedagogical approach is to begin by introducing a very simple model in a simple setting, and then expanding both the model and the setting in a stepwise fashion. We emphasize interoperability and rigorous evaluation of models right from the start, as a way of guiding the development of more sophisticated models. In doing this, we follow a philosophy resembling what is known as agile development in computer science.
-To facilitate interoperability and evaluation of models, we rely on the [Chap platform](https://dhis2-chap.github.io/chap-core), which enforces standards of interoperability already from the first, simple model. This interoperability allows models to be run on a broad data collection and be rigorously evaluated with rich visualisations of data and predictions already from the early phase.
+To facilitate interoperability and evaluation of models, we rely on the [Chap platform](../index.md), which enforces standards of interoperability already from the first, simple model. This interoperability allows models to be run on a broad data collection and be rigorously evaluated with rich visualisations of data and predictions already from the early phase.
 
 # Making your first model and getting it into chap
 Disease forecasting is a type of problem within what is known as spatiotemporal modelling in the field of statistics/ML. What this means is that the data have both a temporal and spatial reference (i.e. data of disease incidence is available at multiple subsequent time points, for different regions in a country), where observations that are close in time or space are usually considered more likely to be similar. In our case, we also have data both on disease and on various climate variables that may influence disease incidence.
@@ -206,10 +211,18 @@ To see a simple way of doing this in code, follow this tutorial in Python or R:
 
 
 # Expanding your model with uncertainty
+Future disease development can never be predicted with absolute certainty - even for short time scales there will always be some uncertainty of how the disease develops. For a decision maker, receiving a point estimate (a single best guess) without any indication of uncertainty is usually not very useful. Consider a best guess of 100 cases in a region. The way to use this information would likely be very different if the model predicted a range from 95 to 105 vs a range from 0 to 10 000. Although the range provided by the model is itself uncertain, it still provides a useful indication of what can be expected, and it will be possible to evaluate its ability to report its own uncertainty (as will be explained in the next section). 
 
-- What and why uncertainty
-- How to generically represent uncertainty: provide an empirical distribution (samples)
-- Add this by adding simple stochastic noise term to a single deterministic prediction from a model
+When doing statistical modelling, uncertainty arises from several distinct sources, many of which are particularly important in time series settings. First, observed data are often noisy or imperfect measurements of an underlying process. Measurement error, reporting delays, missing values, or later data revisions mean that the observed series does not exactly reflect the true system being modelled.
+
+Even with perfect observations, the underlying process itself is usually stochastic, meaning that even if one had precise measurements of the current status and had learnt a perfectly correct model that involves these measured data, a variety of external factors would influence disease development in unpredictable ways. Additional uncertainty comes from estimating model parameters (relations between climate and disease) using often limited historical data. This uncertainty propagates into predictions. There is also uncertainty associated with model choice. Any model is a simplification of reality, and incorrect assumptions about lag structure, stationarity, seasonality, or linearity can lead to biased inference and misleading forecasts. This structural uncertainty is difficult to quantify but often dominates in practice.
+
+Bayesian modelling provides a way to combine uncertainties from various sources in a coherent, principled way, making sure that the overall uncertainty is well represented. One aspect of this is that instead of estimating one particular value for each of its model parameters (e.g. for the relation between a given climate factor and the disease), it estimates a probability distribution for this value (referred to as the posterior distribution). Uncertainty intervals can then be based on the posterior distribution, for example using the interval between the 5% and 95% quantiles would give an interval with 90% probability of containing the true value of the parameter. Similarly, prediction intervals can be generated for the disease forecasts based on the uncertainty represented in the model itself (in its parameter distributions).
+
+Many other modelling approaches (e.g. classical ARIMA and most machine learning models) are mainly focused on the trend of disease development - of predicting a point estimate (single value) for the expected (or most likely) number of disease cases ahead. Uncertainty is then often added on top of this prediction of expected value. A simple choice is to view the model predictions as representing the expected value of some probability distribution that captures the uncertainty of the forecast. For instance, one could view model forecasts as representing the expected value of a normal distribution with a fixed standard deviation that is estimated to capture the uncertainty as well as possible (under such an assumption of normality). Another more sophisticated alternative is to model this standard deviation itself, so that for every forecast, both the expected value and the uncertainty of the forecast is influenced by the available data.
+
+Reporting forecasted point estimates is straightforward - it is just to report a single number per region and time period. Reporting a prediction that includes uncertainty is less trivial. If the uncertainty is captured by a given parametric distribution (like a plain normal distribution), one could simply report the parameters of this distribution (the mean and standard deviation in the case of the normal distribution). When uncertainty may follow different distributions, one needs a more flexible approach. One possibility is to report quantiles of this distribution - e.g. the 10% and 90% quantiles, which allows to see a 80% prediction interval. One could also report many of these. An even more generic approach to this is to report samples from the distribution, which allows the full distribution to be approximately reconstructed from the samples. It also allows any quantile to be approximated by simply sorting the samples and finding the value that a given proportion of samples are below. Due to its flexibility, this representation is often the preferred and chosen approach to represent predicted distributions, and is also what is used in the chap models when models report their forecasts back to the platform. 
+
 
 ## Evaluating predicted uncertainty
 

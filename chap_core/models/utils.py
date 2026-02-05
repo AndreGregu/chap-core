@@ -1,21 +1,24 @@
+import logging
+import os
+import shutil
+import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal
+from pathlib import Path
+from typing import TYPE_CHECKING, Literal, Union
 
 import git
+import yaml
+
 from chap_core.exceptions import InvalidModelException
 from chap_core.external.external_model import logger
 from chap_core.external.model_configuration import ModelTemplateConfigV2
 from chap_core.models.external_chapkit_model import ExternalChapkitModelTemplate
 from chap_core.models.model_template import ModelTemplate
-import shutil
-import uuid
-import yaml
-import logging
-import os
-from pathlib import Path
 
 if TYPE_CHECKING:
     from chap_core.models.external_model import ExternalModel
+
+ModelTemplateType = Union[ModelTemplate, ExternalChapkitModelTemplate]
 
 
 def _get_working_dir(model_path, base_working_dir, run_dir_type, model_name):
@@ -61,7 +64,7 @@ def _get_model_code_base(model_path, base_working_dir, run_dir_type):
         model_name = Path(model_path).name
 
     run_dir_type, working_dir = _get_working_dir(model_path, base_working_dir, run_dir_type, model_name)
-    logger.info(f"Writing results to {working_dir}")
+    logger.debug(f"Writing results to {working_dir}")
 
     if is_github:
         working_dir.mkdir(parents=True)
@@ -78,14 +81,14 @@ def _get_model_code_base(model_path, base_working_dir, run_dir_type):
             logger.info(f"Cloning repository {model_path} (shallow clone)")
             repo = git.Repo.clone_from(model_path, working_dir, depth=1)
     elif run_dir_type == "use_existing":
-        logging.info("Not copying any model files, using existing directory")
+        logging.debug("Not copying any model files, using existing directory")
     else:
         # copy contents of model_path to working_dir
-        logger.info(f"Copying files from {model_path} to {working_dir}")
+        logger.debug(f"Copying files from {model_path} to {working_dir}")
         shutil.copytree(
             model_path,
             working_dir,
-            ignore=lambda dir, contents: list({".venv", "venv"}.intersection(contents)),
+            ignore=lambda dir, contents: list({".venv", "venv", "runs"}.intersection(contents)),
             dirs_exist_ok=True,
         )
     return working_dir
@@ -106,12 +109,12 @@ def get_model_template_from_mlproject_file(mlproject_file, ignore_env=False, wor
 
 
 def get_model_template_from_directory_or_github_url(
-    model_template_path,
-    base_working_dir=Path("runs/"),
-    ignore_env=False,
-    run_dir_type="timestamp",
+    model_template_path: str,
+    base_working_dir: Path = Path("runs/"),
+    ignore_env: bool = False,
+    run_dir_type: str = "timestamp",
     is_chapkit_model: bool = False,
-) -> ModelTemplate:
+) -> ModelTemplateType:
     """
     Note: Preferably use ModelTemplate.from_directory_or_github_url instead of
     using this function directly. This function may be depcrecated in the future.
@@ -134,19 +137,21 @@ def get_model_template_from_directory_or_github_url(
     """
 
     if is_chapkit_model:
-        logger.info("Model is chapkit model")
-        # For now, we assume that if a model template has a url on localhost it is
-        # a chapkit model
+        logger.debug("Model is chapkit model")
+        # ExternalChapkitModelTemplate now handles both URLs and directory paths.
+        # For directory mode, the caller must use it as a context manager.
         template = ExternalChapkitModelTemplate(model_template_path)
-        assert template.name is not None, template
+        # Only verify name for URL mode (service already running)
+        if template._is_url_mode:
+            assert template.name is not None, template
         return template
 
-    logger.info(
+    logger.debug(
         f"Getting model template from {model_template_path}. Ignore env: {ignore_env}. Base working dir: {base_working_dir}. Run dir type: {run_dir_type}"
     )
     working_dir = _get_model_code_base(model_template_path, base_working_dir, run_dir_type)
 
-    logger.info(f"Current directory is {os.getcwd()}, working dir is {working_dir.absolute()}")
+    logger.debug(f"Current directory is {os.getcwd()}, working dir is {working_dir.absolute()}")
     assert os.path.isdir(working_dir), working_dir
     assert os.path.isdir(os.path.abspath(working_dir)), working_dir
 
@@ -154,8 +159,8 @@ def get_model_template_from_directory_or_github_url(
     if not (working_dir / "MLproject").exists():
         raise InvalidModelException("No MLproject file found in model directory")
 
-    template = get_model_template_from_mlproject_file(working_dir / "MLproject", ignore_env=ignore_env)
-    return template
+    model_template = get_model_template_from_mlproject_file(working_dir / "MLproject", ignore_env=ignore_env)
+    return model_template
 
 
 def get_model_from_directory_or_github_url(
@@ -163,7 +168,7 @@ def get_model_from_directory_or_github_url(
     base_working_dir=Path("runs/"),
     ignore_env=False,
     run_dir_type: Literal["timestamp", "latest", "use_existing"] = "timestamp",
-    model_configuration_yaml: str = None,
+    model_configuration_yaml: str | None = None,
 ) -> "ExternalModel":
     """
     NOTE: This function is deprecated, can be removed in the future.
@@ -186,7 +191,6 @@ def get_model_from_directory_or_github_url(
     model_configuration_yaml : str, optional
         Path to the model configuration yaml file, by default None. This has to be a yaml that is compatible with the model configuration class given by the ModelTemplate.
     """
-
     template = get_model_template_from_directory_or_github_url(
         model_template_path, ignore_env=ignore_env, run_dir_type=run_dir_type
     )
@@ -197,4 +201,4 @@ def get_model_from_directory_or_github_url(
             model_configuration = yaml.load(file, Loader=yaml.FullLoader)
             # model_configuration = config_class.model_validate(model_configuration)
 
-    return template.get_model(model_configuration=model_configuration)
+    return template.get_model(model_configuration=model_configuration)  # type: ignore[arg-type, return-value]

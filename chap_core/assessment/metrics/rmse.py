@@ -1,119 +1,37 @@
 """
-Root Mean Squared Error (RMSE) metrics.
+Root Mean Squared Error (RMSE) metric.
 """
 
-import pandas as pd
-from chap_core.assessment.flat_representations import DataDimension, FlatForecasts, FlatObserved
-from chap_core.assessment.metrics.base import MetricBase, MetricSpec
+from chap_core.assessment.metrics import metric
+from chap_core.assessment.metrics.base import (
+    AggregationOp,
+    DeterministicMetric,
+    MetricSpec,
+)
 
 
-class RMSE(MetricBase):
+@metric()
+class RMSEMetric(DeterministicMetric):
     """
     Root Mean Squared Error metric.
-    Groups by location to give RMSE per location across all time periods and horizons.
-    """
 
-    spec = MetricSpec(output_dimensions=(DataDimension.location,), metric_name="RMSE")
+    Computes absolute error at the detailed level. When aggregated using
+    ROOT_MEAN_SQUARE, this produces the RMSE (sqrt of mean squared error).
 
-    def compute(self, observations: FlatObserved, forecasts: FlatForecasts) -> pd.DataFrame:
-        # Merge observations with forecasts on location and time_period
-        merged = forecasts.merge(
-            observations[["location", "time_period", "disease_cases"]], 
-            on=["location", "time_period"], 
-            how="inner"
-        )
-
-        # Calculate median forecast across samples for each location and time_period
-        median_forecast = merged.groupby(
-            ["location", "time_period"], as_index=False)["forecast"].median()
-
-        # Attatch true values
-        median_with_truth = median_forecast.merge(
-            observations[["location", "time_period", "disease_cases"]], 
-            on=["location", "time_period"], 
-            how="inner"
-        )
-
-        # Calculate squared error for each forecast
-        median_with_truth["squared_error"] = (median_with_truth["forecast"] - median_with_truth["disease_cases"]) ** 2
-
-        # Average squared error across time_periods for each location
-        location_mse = median_with_truth.groupby(["location"], as_index=False)["squared_error"].mean()
-
-        # Take square root to get RMSE
-        location_mse["metric"] = location_mse["squared_error"] ** 0.5
-
-        # Return only the required columns
-        return location_mse[["location", "metric"]]
-
-
-class RMSEAggregate(MetricBase):
-    """
-    Fully aggregated Root Mean Squared Error metric.
-    Computes a single RMSE value across all locations, time periods, and horizons.
-    Aggregates directly from all data points, not by averaging per-location RMSEs.
+    Usage:
+        rmse = RMSEMetric()
+        detailed = rmse.get_detailed_metric(obs, forecasts)
+        global_val = rmse.get_global_metric(obs, forecasts)
+        per_loc = rmse.get_metric(obs, forecasts, dimensions=(DataDimension.location,))
     """
 
     spec = MetricSpec(
-        output_dimensions=(),
+        metric_id="rmse",
         metric_name="RMSE",
-        metric_id="rmse_aggregate",
-        description="Aggregate RMSE across all data",
+        aggregation_op=AggregationOp.ROOT_MEAN_SQUARE,
+        description="Root Mean Squared Error - measures average prediction error magnitude",
     )
 
-    def compute(self, observations: FlatObserved, forecasts: FlatForecasts) -> pd.DataFrame:
-        merged = forecasts.merge(
-            observations[["location", "time_period", "disease_cases"]], on=["location", "time_period"], how="inner"
-        )
-
-        merged["squared_error"] = (merged["forecast"] - merged["disease_cases"]) ** 2
-
-        # Average squared error across all entries, then take square root
-        mse = merged["squared_error"].mean()
-        rmse = mse**0.5
-
-        return pd.DataFrame({"metric": [rmse]})
-
-
-class DetailedRMSE(MetricBase):
-    """
-    Detailed Root Mean Squared Error metric.
-    Does not group - gives one RMSE value per location/time_period/horizon_distance combination.
-    This provides the highest resolution view of model performance.
-    """
-
-    spec = MetricSpec(
-        output_dimensions=(DataDimension.location, DataDimension.time_period, DataDimension.horizon_distance),
-        metric_name="RMSE",
-        description="Detailed RMSE",
-    )
-
-    def compute(self, observations: pd.DataFrame, forecasts: pd.DataFrame) -> pd.DataFrame:
-        # Merge observations with forecasts on location and time_period
-        merged = forecasts.merge(
-            observations[["location", "time_period", "disease_cases"]], 
-            on=["location", "time_period"], 
-            how="inner",
-        )
-
-        median_forecast = merged.groupby(
-            ["location", "time_period", "horizon_distance"], as_index=False
-        )["forecast"].median()
-
-        # Attatch true values
-        merged = median_forecast.merge(
-            observations[["location", "time_period", "disease_cases"]], 
-            on=["location", "time_period"], 
-            how="inner",
-        )
-
-        # Calculate squared error for each forecast
-        merged["squared_error"] = (merged["forecast"] - merged["disease_cases"]) ** 2
-
-
-
-        # Take square root to get RMSE
-        merged["metric"] = merged["squared_error"] ** 0.5
-
-        # Return only the required columns
-        return merged[["location", "time_period", "horizon_distance", "metric"]]
+    def compute_point_metric(self, forecast: float, observed: float) -> float:
+        """Compute absolute error for a single forecast/observation pair."""
+        return abs(forecast - observed)

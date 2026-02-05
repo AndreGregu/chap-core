@@ -4,10 +4,10 @@ from chap_core.model_spec import PeriodType
 from chap_core.models.external_chapkit_model import ExternalChapkitModelTemplate
 from chap_core.models.local_configuration import parse_local_model_config_from_directory
 
-from .database import SessionWrapper
-from .model_templates_and_config_tables import ModelTemplateDB, ModelConfiguration
 from ..file_io.file_paths import get_config_path
 from ..models.model_template import ExternalModelTemplate
+from .database import SessionWrapper
+from .model_templates_and_config_tables import ModelConfiguration, ModelTemplateDB
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -109,6 +109,9 @@ def seed_configured_models_from_config_dir(
             # find latest version in yaml, add that as a model template before for loop
             version, version_commit_or_branch = list(config.versions.items())[-1]
             version_commit_or_branch = version_commit_or_branch.strip("@")
+            if config.url.endswith("/"):
+                config.url = config.url[:-1]
+
             version_url = f"{config.url}@{version_commit_or_branch}"
             template_id = add_model_template_from_url(version_url, wrapper, version)
 

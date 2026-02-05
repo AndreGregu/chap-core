@@ -1,14 +1,13 @@
-from typing import Optional, List
+import logging
 from enum import Enum
+from typing import List, Optional
 
 import jsonschema
-from sqlalchemy import Column, JSON
-from sqlmodel import SQLModel, Field, Relationship
-
+from sqlalchemy import JSON, Column
+from sqlmodel import Field, Relationship, SQLModel
 
 from chap_core.database.base_tables import DBModel
 from chap_core.model_spec import PeriodType
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +37,8 @@ class ModelTemplateInformation(SQLModel):
     user_options: Optional[dict] = Field(default_factory=dict, sa_column=Column(JSON))
     hpo_search_space: Optional[dict] = Field(default=None, sa_column=Column(JSON))  # rename to hpo_search_space
     required_covariates: List[str] = Field(default_factory=list, sa_column=Column(JSON))
+    min_prediction_length: Optional[int] = None
+    max_prediction_length: Optional[int] = None
     target: str = "disease_cases"
     allow_free_additional_continuous_covariates: bool = False
 
@@ -52,6 +53,7 @@ class ModelTemplateDB(DBModel, ModelTemplateMetaData, ModelTemplateInformation, 
     source_url: Optional[str] = None
     configured_models: List["ConfiguredModelDB"] = Relationship(back_populates="model_template", cascade_delete=True)
     version: Optional[str] = None
+    archived: bool = Field(default=False)
 
 
 class ModelConfiguration(SQLModel):
@@ -71,9 +73,9 @@ class ConfiguredModelDB(ModelConfiguration, DBModel, table=True):
 
     @classmethod
     def _validate_model_configuration(cls, user_options, user_option_values):
-        logger.info("Validating model configuration")
-        logger.info(user_options)
-        logger.info(user_option_values)
+        logger.debug("Validating model configuration")
+        logger.debug(f"User options keys: {list(user_options.keys()) if user_options else []}")
+        logger.debug(f"User option values keys: {list(user_option_values.keys()) if user_option_values else []}")
         schema = {
             "type": "object",
             "properties": user_options,
@@ -83,9 +85,9 @@ class ConfiguredModelDB(ModelConfiguration, DBModel, table=True):
         jsonschema.validate(instance=user_option_values, schema=schema)
 
     # @model_validator(mode='after')
-    def validate_user_options(cls, model):
+    def validate_user_options(self, model):
         try:
-            cls._validate_model_configuration(model.model_template.user_options, model.user_option_values)
+            self._validate_model_configuration(model.model_template.user_options, model.user_option_values)
         except jsonschema.ValidationError as e:
             logger.error(f"Validation error in model configuration: {e}")
             raise ValueError(f"Invalid user options: {e.message}")

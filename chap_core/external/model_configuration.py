@@ -1,6 +1,8 @@
 from typing import Optional
+
 from pydantic import BaseModel
-from chap_core.database.model_templates_and_config_tables import ModelTemplateMetaData, ModelTemplateInformation
+
+from chap_core.database.model_templates_and_config_tables import ModelTemplateInformation, ModelTemplateMetaData
 
 
 class DockerEnvConfig(BaseModel):
@@ -23,6 +25,8 @@ class RunnerConfig(BaseModel, extra="forbid"):  # pydantic-specific config to fo
     entry_points: Optional[EntryPointConfig] = None
     docker_env: Optional[DockerEnvConfig] = None
     python_env: Optional[str] = None
+    uv_env: Optional[str] = None
+    renv_env: Optional[str] = None
 
 
 class ModelTemplateConfigCommon(ModelTemplateInformation, extra="forbid"):

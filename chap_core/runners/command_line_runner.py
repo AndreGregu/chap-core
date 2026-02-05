@@ -1,6 +1,7 @@
 import logging
 import subprocess
 from pathlib import Path
+
 from chap_core.exceptions import CommandLineException, ModelConfigurationException
 from chap_core.runners.runner import Runner, TrainPredictRunner
 
@@ -14,18 +15,28 @@ class CommandLineRunner(Runner):
     def run_command(self, command):
         return run_command(command, self._working_dir)
 
-    def store_file(self):
+    def store_file(self, file_path: str | None = None) -> None:
         pass
 
 
-def run_command(command: str, working_directory=Path(".")):
-    """Runs a unix command using subprocess"""
-    logging.info(f"Running command: {command}")
+def run_command(command: str, working_directory=Path("."), env: dict | None = None):
+    """Runs a unix command using subprocess.
+
+    Parameters
+    ----------
+    command : str
+        The command to run
+    working_directory : Path
+        The directory to run the command in
+    env : dict, optional
+        Environment variables to use. If None, uses the current environment.
+    """
+    logging.debug(f"Running command: {command}")
     # command = command.split()
 
     try:
         process = subprocess.Popen(
-            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=working_directory, shell=True
+            command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=working_directory, shell=True, env=env
         )
         stdout, stderr = process.communicate()
         output = stdout.decode() + "\n" + stderr.decode()
@@ -63,7 +74,7 @@ def run_command(command: str, working_directory=Path(".")):
 class CommandLineTrainPredictRunner(TrainPredictRunner):
     def __init__(
         self,
-        runner: CommandLineRunner,
+        runner: Runner,
         train_command: str,
         predict_command: str,
         model_configuration_filename: str | None = None,
@@ -103,7 +114,7 @@ class CommandLineTrainPredictRunner(TrainPredictRunner):
         keys = self._handle_polygons(self._train_command, keys, polygons_file_name)
         keys = self._handle_config(self._train_command, keys)
         command = self._format_command(self._train_command, keys)
-        logger.info(f"Running command {command}")
+        logger.debug(f"Running command {command}")
         return self._runner.run_command(command)
 
     def predict(self, model_file_name, historic_data, future_data, output_file, polygons_file_name=None):

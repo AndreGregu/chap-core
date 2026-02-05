@@ -1,0 +1,10 @@
+[project]
+name = "naive-python-model-uv"
+version = "0.1.0"
+description = "Example CHAP model using uv for environment management"
+requires-python = ">=3.10"
+dependencies = [
+    "cyclopts",
+    "numpy",
+    "pandas",
+]

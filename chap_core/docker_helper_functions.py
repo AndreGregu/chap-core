@@ -1,7 +1,8 @@
+import logging
 import os
 from pathlib import Path
+
 import docker
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,10 @@ def run_command_through_docker_container(
         logging.error(f"Current directory is {os.getcwd()}")
         raise
 
-    logger.info(
+    logger.debug(
         f"Running command {command} in docker image {docker_image_name} with mount {working_dir_full_path}:/home/run/"
     )
-    logger.info(
+    logger.debug(
         f"Equivalent docker command: docker run -w /home/run -v {working_dir_full_path}:/home/run/ {docker_image_name} {command}"
     )
     container = client.containers.run(

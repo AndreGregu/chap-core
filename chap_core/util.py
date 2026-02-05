@@ -1,6 +1,7 @@
-from shutil import which
-import numpy as np
 import os
+from shutil import which
+
+import numpy as np
 
 
 def nan_helper(y):
@@ -37,6 +38,10 @@ def docker_available():
 
 def pyenv_available():
     return which("pyenv") is not None
+
+
+def uv_available():
+    return which("uv") is not None
 
 
 def redis_available():

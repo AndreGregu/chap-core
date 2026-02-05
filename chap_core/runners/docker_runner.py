@@ -1,11 +1,12 @@
+import logging
 from pathlib import Path
 
 from chap_core.runners.command_line_runner import CommandLineTrainPredictRunner
+
 from ..docker_helper_functions import (
     run_command_through_docker_container,
 )
 from .runner import Runner
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +20,8 @@ class DockerRunner(Runner):
         self._model_configuration_filename = model_configuration_filename
 
     def run_command(self, command):
-        logger.info(f"Running command {command} in docker container {self._docker_name} in {self._working_dir}")
-        return run_command_through_docker_container(self._docker_name, self._working_dir, command)
+        logger.debug(f"Running command {command} in docker container {self._docker_name} in {self._working_dir}")
+        return run_command_through_docker_container(self._docker_name, str(self._working_dir), command)
 
     def teardown(self):
         # remove the docker image

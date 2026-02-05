@@ -2,71 +2,36 @@
 Mean Absolute Error (MAE) metric.
 """
 
-import pandas as pd
-from chap_core.assessment.flat_representations import DataDimension, FlatForecasts, FlatObserved
-from chap_core.assessment.metrics.base import MetricBase, MetricSpec
+from chap_core.assessment.metrics import metric
+from chap_core.assessment.metrics.base import (
+    AggregationOp,
+    DeterministicMetric,
+    MetricSpec,
+)
 
 
-class MAE(MetricBase):
+@metric()
+class MAEMetric(DeterministicMetric):
     """
     Mean Absolute Error metric.
-    Groups by location and horizon_distance to show error patterns across forecast horizons.
-    """
 
-    spec = MetricSpec(output_dimensions=(DataDimension.location, DataDimension.horizon_distance), metric_name="MAE")
+    Computes absolute error at the detailed level. When aggregated using
+    MEAN, this produces the MAE (mean of absolute errors).
 
-    def compute(self, observations: pd.DataFrame, forecasts: pd.DataFrame) -> pd.DataFrame:
-        # Merge observations with forecasts
-        merged = forecasts.merge(
-            observations[["location", "time_period", "disease_cases"]], 
-            on=["location", "time_period"], 
-            how="inner"
-        )
-
-        median_forecast = merged.groupby(
-            ["location", "time_period", "horizon_distance"], as_index=False)["forecast"].median()
-        
-        median_with_truth = median_forecast.merge(
-            observations[["location", "time_period", "disease_cases"]],
-            on=["location", "time_period"],
-            how="inner"
-        )
-
-        # Calculate absolute error
-        median_with_truth["abs_error"] = (median_with_truth["forecast"] - median_with_truth["disease_cases"]).abs()
-
-        # Then average across samples to get MAE per location and horizon
-        mae_by_horizon = (
-            median_with_truth.groupby(["location", "horizon_distance"], as_index=False)["abs_error"]
-            .mean()
-            .rename(columns={"abs_error": "metric"})
-        )
-
-        return mae_by_horizon
-
-
-class MAEAggregate(MetricBase):
-    """
-    Fully aggregated Mean Absolute Error metric.
-    Computes a single MAE value across all locations, time periods, and horizons.
-    Aggregates directly from all data points, not by averaging per-location MAEs.
+    Usage:
+        mae = MAEMetric()
+        detailed = mae.get_detailed_metric(obs, forecasts)
+        global_val = mae.get_global_metric(obs, forecasts)
+        per_loc = mae.get_metric(obs, forecasts, dimensions=(DataDimension.location,))
     """
 
     spec = MetricSpec(
-        output_dimensions=(),
+        metric_id="mae",
         metric_name="MAE",
-        metric_id="mae_aggregate",
-        description="Aggregate MAE across all data",
+        aggregation_op=AggregationOp.MEAN,
+        description="Mean Absolute Error - measures average absolute prediction error",
     )
 
-    def compute(self, observations: FlatObserved, forecasts: FlatForecasts) -> pd.DataFrame:
-        merged = forecasts.merge(
-            observations[["location", "time_period", "disease_cases"]], on=["location", "time_period"], how="inner"
-        )
-
-        merged["abs_error"] = (merged["forecast"] - merged["disease_cases"]).abs()
-
-        # Average absolute error across all entries
-        mae = merged["abs_error"].mean()
-
-        return pd.DataFrame({"metric": [mae]})
+    def compute_point_metric(self, forecast: float, observed: float) -> float:
+        """Compute absolute error for a single forecast/observation pair."""
+        return abs(forecast - observed)

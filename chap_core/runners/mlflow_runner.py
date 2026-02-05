@@ -1,9 +1,11 @@
-from chap_core.exceptions import ModelFailedException
-from chap_core.runners.runner import TrainPredictRunner
+import logging
+
 import mlflow.exceptions
 import mlflow.projects
 from mlflow.utils.process import ShellCommandException
-import logging
+
+from chap_core.exceptions import ModelFailedException
+from chap_core.runners.runner import TrainPredictRunner
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +31,9 @@ class MlFlowTrainPredictRunner(TrainPredictRunner):
             possible_extra = {
                 "model_config": str(self.model_configuration_filename) if self.model_configuration_filename else None,
             }
-            keys.update({key: val for key, val in possible_extra.items() if key in self.extra_params})
+            keys.update(
+                {key: val for key, val in possible_extra.items() if key in self.extra_params and val is not None}
+            )
             return mlflow.projects.run(
                 str(self.model_path),
                 entry_point="train",
@@ -46,7 +50,7 @@ class MlFlowTrainPredictRunner(TrainPredictRunner):
             raise ModelFailedException(str(e)) from e
 
     def predict(self, model_file_name, historic_data, future_data, output_file, polygons_file_name=None):
-        logging.info("Running predict with output to %s" % output_file)
+        logging.debug("Running predict with output to %s" % output_file)
         if self.model_configuration_filename is not None:
             ("Model configuration not supported for MLflow runner")
         params = {
@@ -55,11 +59,11 @@ class MlFlowTrainPredictRunner(TrainPredictRunner):
             "model": str(model_file_name),
             "out_file": str(output_file),
         }
-        logging.info("Params for predict: %s" % params)
+        logging.debug("Params for predict: %s" % params)
         extra_params = {
             "model_config": str(self.model_configuration_filename) if self.model_configuration_filename else None,
         }
-        params.update({key: val for key, val in extra_params.items() if key in self.extra_params})
+        params.update({key: val for key, val in extra_params.items() if key in self.extra_params and val is not None})
         return mlflow.projects.run(
             str(self.model_path),
             entry_point="predict",

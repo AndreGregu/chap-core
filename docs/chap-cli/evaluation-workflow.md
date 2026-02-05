@@ -6,15 +6,31 @@ This guide walks through the complete workflow for evaluating models, visualizin
 
 The workflow consists of three main steps:
 
-1. **evaluate2**: Run a backtest and export results to NetCDF format
+1. **eval**: Run a backtest and export results to NetCDF format
 2. **plot-backtest**: Generate visualizations from evaluation results
 3. **export-metrics**: Compare metrics across multiple evaluations in CSV format
 
 ## Prerequisites
 
-- CHAP Core installed (see [CLI setup guide](chap-core-cli-setup.md))
+- CHAP Core installed (see [Setup guide](chap-core-cli-setup.md))
 - A dataset CSV file with disease case data
 - A GeoJSON file with region polygons (optional, auto-discovered if named same as CSV)
+
+## Verify Installation
+
+Before starting, verify that the CLI tools are installed correctly:
+
+```bash
+chap eval --help
+```
+
+```bash
+chap plot-backtest --help
+```
+
+```bash
+chap export-metrics --help
+```
 
 ## Example Dataset
 
@@ -27,13 +43,63 @@ This dataset contains 108 rows with rainfall, temperature, disease cases, and po
 
 ## Step 1: Create an Evaluation
 
-Use `evaluate2` to run a backtest on a model and export results to NetCDF format:
+Use `eval` to run a backtest on a model and export results to NetCDF format.
 
-```bash
-chap evaluate2 \
+### Standard Models (GitHub URL or Local Directory)
+
+For models hosted on GitHub or cloned locally:
+
+```console
+chap eval \
     --model-name https://github.com/dhis2-chap/minimalist_example_r \
     --dataset-csv ./data/vietnam_data.csv \
     --output-file ./results/model_a_eval.nc \
+    --backtest-params.n-periods 3 \
+    --backtest-params.n-splits 7
+```
+
+Or using a local directory:
+
+```console
+chap eval \
+    --model-name /path/to/minimalist_example_r \
+    --dataset-csv ./data/vietnam_data.csv \
+    --output-file ./results/model_a_eval.nc \
+    --backtest-params.n-periods 3 \
+    --backtest-params.n-splits 7
+```
+
+### Chapkit Models
+
+Chapkit models are REST API-based models that follow the chapkit specification. See [Running models with chapkit](../external_models/chapkit.md) for more details.
+
+**From a running chapkit service (URL):**
+
+```console
+chap eval \
+    --model-name http://localhost:8000 \
+    --dataset-csv ./data/vietnam_data.csv \
+    --output-file ./results/chapkit_eval.nc \
+    --run-config.is-chapkit-model \
+    --backtest-params.n-periods 3 \
+    --backtest-params.n-splits 7
+```
+
+**From a local chapkit model directory (auto-starts the service):**
+
+When you provide a directory path with `--run-config.is-chapkit-model`, CHAP automatically:
+
+1. Starts a FastAPI dev server from the model directory using `uv run fastapi dev`
+2. Waits for the service to become healthy
+3. Runs the evaluation
+4. Stops the service when complete
+
+```console
+chap eval \
+    --model-name /path/to/your/chapkit/model \
+    --dataset-csv ./data/vietnam_data.csv \
+    --output-file ./results/chapkit_eval.nc \
+    --run-config.is-chapkit-model \
     --backtest-params.n-periods 3 \
     --backtest-params.n-splits 7
 ```
@@ -42,13 +108,21 @@ chap evaluate2 \
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `--model-name` | Model path or GitHub URL | Required |
+| `--model-name` | Model path, GitHub URL, or chapkit service URL | Required |
 | `--dataset-csv` | Path to CSV with disease data | Required |
 | `--output-file` | Path for output NetCDF file | Required |
 | `--backtest-params.n-periods` | Forecast horizon (periods ahead) | 3 |
 | `--backtest-params.n-splits` | Number of train/test splits | 7 |
 | `--backtest-params.stride` | Step size between splits | 1 |
 | `--model-configuration-yaml` | Optional YAML with model config | None |
+| `--run-config.is-chapkit-model` | Flag to indicate chapkit model | false |
+| `--run-config.ignore-environment` | Skip environment setup | false |
+| `--run-config.debug` | Enable debug logging | false |
+| `--run-config.run-directory-type` | Directory handling: `latest`, `timestamp`, or `use_existing` | timestamp |
+| `--historical-context-years` | Years of historical data for plot context | 6 |
+| `--data-source-mapping` | JSON file mapping model covariate names to CSV columns | None |
+
+For detailed parameter descriptions and examples, see the [eval Reference](eval-reference.md).
 
 ### GeoJSON Auto-Discovery
 
@@ -58,20 +132,20 @@ If your dataset is `vietnam_data.csv`, CHAP will automatically look for `vietnam
 
 Use `plot-backtest` to generate visualizations from the evaluation results:
 
-```bash
+```console
 chap plot-backtest \
     --input-file ./results/model_a_eval.nc \
     --output-file ./results/model_a_plot.html \
-    --plot-type backtest_plot_1
+    --plot-type metrics_dashboard
 ```
 
 ### Available Plot Types
 
 | Plot Type | Description |
 |-----------|-------------|
-| `backtest_plot_1` | Standard backtest visualization with forecasts vs observations |
-| `evaluation_plot` | Evaluation summary plot |
-| `ratio_of_samples_above_truth` | Shows forecast bias across locations |
+| `metrics_dashboard` | Dashboard showing various metrics by forecast horizon and time period |
+| `evaluation_plot` | Evaluation summary plot with forecasts vs observations and uncertainty bands |
+| `ratio_of_samples_above_truth` | Shows forecast bias relative to observations |
 
 ### Output Formats
 
@@ -87,8 +161,8 @@ The output format is determined by file extension:
 
 Run the same process with a different model for comparison:
 
-```bash
-chap evaluate2 \
+```console
+chap eval \
     --model-name https://github.com/dhis2-chap/chap_auto_ewars_weekly \
     --dataset-csv ./data/vietnam_data.csv \
     --output-file ./results/model_b_eval.nc \
@@ -102,8 +176,13 @@ Use `export-metrics` to compute metrics from multiple evaluations and export to 
 
 ```bash
 chap export-metrics \
-    --input-files ./results/model_a_eval.nc ./results/model_b_eval.nc \
-    --output-file ./results/comparison.csv
+    --input-files example_data/example_evaluation.nc \
+    --input-files example_data/example_evaluation_2.nc \
+    --output-file ./comparison_doctest.csv
+```
+
+```bash
+rm -f ./comparison_doctest.csv
 ```
 
 ### Output Format
@@ -133,50 +212,130 @@ To export only specific metrics:
 
 ```bash
 chap export-metrics \
-    --input-files ./results/model_a_eval.nc ./results/model_b_eval.nc \
-    --output-file ./results/comparison.csv \
-    --metric-ids rmse_aggregate mae_aggregate crps
+    --input-files example_data/example_evaluation.nc \
+    --input-files example_data/example_evaluation_2.nc \
+    --output-file ./comparison_specific_doctest.csv \
+    --metric-ids rmse \
+    --metric-ids mae \
+    --metric-ids crps
 ```
 
-## Complete Example
+```bash
+rm -f ./comparison_specific_doctest.csv
+```
 
-Here's a complete workflow comparing two models using the included example dataset:
+## Complete Example: Standard Models
+
+Here's a complete workflow using the included example dataset (`example_data/laos_subset.csv`) with a minimal model for fast testing:
 
 ```bash
-# Step 1: Evaluate first model (auto-regressive)
-chap evaluate2 \
-    --model-name https://github.com/dhis2-chap/chap_auto_ewars \
-    --dataset-csv ./example_data/laos_subset.csv \
-    --output-file ./eval_ewars.nc \
-    --backtest-params.n-splits 3
+# Step 1: Evaluate model
+chap eval \
+    --model-name external_models/naive_python_model_uv \
+    --dataset-csv example_data/laos_subset.csv \
+    --output-file ./eval_doctest.nc \
+    --backtest-params.n-splits 2 \
+    --backtest-params.n-periods 1
+```
 
-# Step 2: Plot first model results
+```bash
+# Step 2: Plot results
 chap plot-backtest \
-    --input-file ./eval_ewars.nc \
-    --output-file ./plot_ewars.html
+    --input-file ./eval_doctest.nc \
+    --output-file ./plot_doctest.html
+```
 
-# Step 3: Evaluate second model (minimalist R model)
-chap evaluate2 \
-    --model-name https://github.com/dhis2-chap/minimalist_example_r \
-    --dataset-csv ./example_data/laos_subset.csv \
-    --output-file ./eval_minimalist.nc \
-    --backtest-params.n-splits 3
-
-# Step 4: Plot second model results
-chap plot-backtest \
-    --input-file ./eval_minimalist.nc \
-    --output-file ./plot_minimalist.html
-
-# Step 5: Compare metrics
+```bash
+# Step 3: Export metrics
 chap export-metrics \
-    --input-files ./eval_ewars.nc ./eval_minimalist.nc \
-    --output-file ./model_comparison.csv
+    --input-files ./eval_doctest.nc \
+    --output-file ./metrics_doctest.csv
+```
 
-# View the comparison
-cat ./model_comparison.csv
+```bash
+# Cleanup
+rm -f ./eval_doctest.nc ./plot_doctest.html ./metrics_doctest.csv
 ```
 
 The GeoJSON file `example_data/laos_subset.geojson` is automatically discovered since it has the same base name as the CSV.
+
+## Complete Example: Chapkit Models
+
+Here's a workflow using chapkit models, including both a running service and a local directory:
+
+### Option A: Using a running chapkit service
+
+First, start your chapkit model service (e.g., using Docker):
+
+```console
+docker run -p 8000:8000 ghcr.io/dhis2-chap/chtorch:latest
+```
+
+Then run the evaluation:
+
+```console
+# Evaluate the chapkit model
+chap eval \
+    --model-name http://localhost:8000 \
+    --dataset-csv ./example_data/laos_subset.csv \
+    --output-file ./eval_chapkit.nc \
+    --run-config.is-chapkit-model \
+    --backtest-params.n-splits 3
+
+# Plot results
+chap plot-backtest \
+    --input-file ./eval_chapkit.nc \
+    --output-file ./plot_chapkit.html
+```
+
+### Option B: Using a local chapkit model directory (auto-start)
+
+If you have a chapkit model in a local directory, CHAP can automatically start and stop the service:
+
+```console
+# Clone or create your chapkit model
+git clone https://github.com/your-org/your-chapkit-model /path/to/chapkit-model
+
+# Evaluate with auto-start (CHAP starts the service automatically)
+chap eval \
+    --model-name /path/to/chapkit-model \
+    --dataset-csv ./example_data/laos_subset.csv \
+    --output-file ./eval_local_chapkit.nc \
+    --run-config.is-chapkit-model \
+    --backtest-params.n-splits 3
+
+# Plot results
+chap plot-backtest \
+    --input-file ./eval_local_chapkit.nc \
+    --output-file ./plot_local_chapkit.html
+```
+
+### Comparing chapkit and standard models
+
+You can compare chapkit models with standard models using export-metrics:
+
+```console
+# Evaluate a standard model
+chap eval \
+    --model-name https://github.com/dhis2-chap/minimalist_example_r \
+    --dataset-csv ./example_data/laos_subset.csv \
+    --output-file ./eval_standard.nc \
+    --backtest-params.n-splits 3
+
+# Evaluate a chapkit model
+chap eval \
+    --model-name /path/to/chapkit-model \
+    --dataset-csv ./example_data/laos_subset.csv \
+    --output-file ./eval_chapkit.nc \
+    --run-config.is-chapkit-model \
+    --backtest-params.n-splits 3
+
+# Compare both
+chap export-metrics \
+    --input-files ./eval_standard.nc \
+    --input-files ./eval_chapkit.nc \
+    --output-file ./comparison.csv
+```
 
 ## Tips
 
@@ -184,3 +343,4 @@ The GeoJSON file `example_data/laos_subset.geojson` is automatically discovered 
 - **Same dataset**: Always use identical datasets for fair comparison
 - **Multiple runs**: Consider running evaluations with different random seeds for robustness
 - **Metric interpretation**: Lower RMSE/MAE/CRPS is better; higher coverage ratios indicate better calibrated uncertainty
+- **Chapkit auto-start**: When using local chapkit directories, ensure `uv` is installed and the model directory has a valid FastAPI app structure with a `/health` endpoint

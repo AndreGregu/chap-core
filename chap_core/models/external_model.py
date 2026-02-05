@@ -1,17 +1,55 @@
 import logging
 from pathlib import Path
+
 import pandas as pd
-import yaml
 
 from chap_core.database.model_templates_and_config_tables import ModelConfiguration
 from chap_core.datatypes import HealthData, Samples
 from chap_core.exceptions import CommandLineException, ModelFailedException, NoPredictionsError
+from chap_core.external.model_configuration import ModelTemplateConfigV2
 from chap_core.geometry import Polygons
 from chap_core.models.configured_model import ConfiguredModel
 from chap_core.spatio_temporal_data.temporal_dataclass import DataSet
-from chap_core.time_period.date_util_wrapper import TimePeriod, Month
+from chap_core.time_period.date_util_wrapper import Month, TimePeriod
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_week_number(period_str: str) -> int:
+    """Extract week number from period string.
+
+    Handles both old format (2020W01, 2020SunW01) and new format (2020-W01, 2020-S01).
+    """
+    # New format: YYYY-Wnn or YYYY-Snn
+    if "-W" in period_str:
+        return int(period_str.split("-W")[-1])
+    if "-S" in period_str:
+        return int(period_str.split("-S")[-1])
+    # Old format: YYYYSunWnn or YYYYWnn
+    if "SunW" in period_str:
+        return int(period_str.split("SunW")[-1])
+    if "W" in period_str:
+        return int(period_str.split("W")[-1])
+    raise ValueError(f"Cannot extract week number from: {period_str}")
+
+
+def _extract_year(period_str: str) -> int:
+    """Extract year from period string.
+
+    Handles both old format (2020W01) and new format (2020-W01, 2020-S01).
+    """
+    # New format: YYYY-Wnn or YYYY-Snn (year is before the hyphen)
+    if "-W" in period_str or "-S" in period_str:
+        return int(period_str.split("-")[0])
+    # Old format: YYYYSunWnn or YYYYWnn
+    if "SunW" in period_str:
+        return int(period_str.split("SunW")[0])
+    if "W" in period_str:
+        return int(period_str.split("W")[0])
+    # Monthly format: YYYY-MM
+    if "-" in period_str:
+        return int(period_str.split("-")[0])
+    raise ValueError(f"Cannot extract year from: {period_str}")
 
 
 class ExternalModelBase(ConfiguredModel):
@@ -19,11 +57,11 @@ class ExternalModelBase(ConfiguredModel):
     A base class for external models that provides some utility methods"""
 
     def _adapt_data(self, data: pd.DataFrame, inverse=False, frequency="ME"):
-        if self._location_mapping is not None:
-            data["location"] = data["location"].apply(self._location_mapping.name_to_index)
-        if self._adapters is None:
+        if self._location_mapping is not None:  # type: ignore[attr-defined]
+            data["location"] = data["location"].apply(self._location_mapping.name_to_index)  # type: ignore[attr-defined]
+        if self._adapters is None:  # type: ignore[attr-defined]
             return data
-        adapters = self._adapters
+        adapters = self._adapters  # type: ignore[attr-defined]
         logger.info(f"Adapting data with columns {data.columns.tolist()} using adapters {adapters}")
         if inverse:
             adapters = {v: k for k, v in adapters.items()}
@@ -42,7 +80,7 @@ class ExternalModelBase(ConfiguredModel):
                         new_val = data["time_period"].dt.week
                         data[to_name] = new_val
                     else:
-                        data[to_name] = [int(str(p).split("W")[-1]) for p in data["time_period"]]  # .dt.week
+                        data[to_name] = [_extract_week_number(str(p)) for p in data["time_period"]]
 
             elif from_name == "month":
                 if frequency == "ME":
@@ -58,9 +96,7 @@ class ExternalModelBase(ConfiguredModel):
                 if hasattr(data["time_period"], "dt"):
                     data[to_name] = data["time_period"].dt.year
                 else:
-                    data[to_name] = [
-                        int(str(p).split("W")[0]) for p in data["time_period"]
-                    ]  # data['time_period'].dt.year
+                    data[to_name] = [_extract_year(str(p)) for p in data["time_period"]]
             else:
                 data[to_name] = data[from_name]
         logger.info(f"Adapted data to columns {data.columns.tolist()}")
@@ -90,11 +126,12 @@ class ExternalModel(ExternalModelBase):
     def __init__(
         self,
         runner,
-        name: str = None,
+        name: str | None = None,
         adapters=None,
         working_dir=None,
         data_type=HealthData,
         configuration: ModelConfiguration | None = None,
+        model_information: ModelTemplateConfigV2 | None = None,
     ):
         self._runner = runner  # MlFlowTrainPredictRunner(model_path)
         # self.model_path = model_path
@@ -108,11 +145,12 @@ class ExternalModel(ExternalModelBase):
         self._model_file_name = "model"
         self._data_type = data_type
         self._name = name
-        self._polygons_file_name = None
-        self._configuration = (
-            configuration or {}
+        self._polygons_file_name: Path | None = None
+        self._configuration: dict[str, object] = (
+            configuration or {}  # type: ignore[assignment]
         )  # configuration passed from the user to the model, e.g. about covariates or parameters
-        self._config_filename = "model_config.yaml"
+        # self._config_filename = "model_config.yaml"
+        self._model_information = model_information
 
     @property
     def name(self):
@@ -123,12 +161,8 @@ class ExternalModel(ExternalModelBase):
         return self._configuration
 
     @property
-    def required_fields(self):
-        return self._required_fields
-
-    @property
-    def optional_fields(self):
-        return self._optional_fields
+    def model_information(self):
+        return self._model_information
 
     def train(self, train_data: DataSet, extra_args=None):
         """
@@ -156,7 +190,8 @@ class ExternalModel(ExternalModelBase):
         new_pd = self._adapt_data(pd, frequency=frequency)
         new_pd.to_csv(train_file_name_full)
 
-        yaml.dump(self._configuration, open(self._config_filename, "w"))
+        # removed line below, writing this config is handled by runner, this should not be needed here
+        # yaml.dump(self._configuration, open(self._config_filename, "w"))
         try:
             self._runner.train(
                 train_file_name,
@@ -169,11 +204,11 @@ class ExternalModel(ExternalModelBase):
         return self
 
     def predict(self, historic_data: DataSet, future_data: DataSet) -> DataSet:
-        logging.info("Running predict")
+        logging.debug("Running predict")
         future_data_name = Path(self._working_dir) / "future_data.csv"
         historic_data_name = Path(self._working_dir) / "historic_data.csv"
         start_time = future_data.start_timestamp
-        logger.info(f"Predicting on dataset from {start_time} to {future_data.end_timestamp}")
+        logger.debug(f"Predicting on dataset from {start_time} to {future_data.end_timestamp}")
 
         for filename, dataset in [
             (future_data_name, future_data),

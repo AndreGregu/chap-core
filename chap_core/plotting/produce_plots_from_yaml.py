@@ -1,20 +1,22 @@
 # --- dependencies you already use ---
-import altair as alt
-import pandas as pd
-import numpy as np
 import textwrap
-import yaml
 from collections.abc import Mapping
 from datetime import datetime
-from chap_core.assessment.metrics import available_metrics
+
+import altair as alt
+import numpy as np
+import pandas as pd
+import yaml
+
 from chap_core.assessment.evaluation import Evaluation
+from chap_core.assessment.metrics import available_metrics
 from chap_core.plotting.evaluation_plot import (
+    MetricByHorizonAndLocationMean,
     MetricByHorizonV2Mean,
     MetricByHorizonV2Sum,
-    MetricByHorizonAndLocationMean,
+    MetricByTimePeriodAndLocationV2Mean,
     MetricByTimePeriodV2Mean,
     MetricByTimePeriodV2Sum,
-    MetricByTimePeriodAndLocationV2Mean,
     MetricMapV2,
 )
 
@@ -27,6 +29,8 @@ METRIC_PLOT_TYPES = {
     "metric_by_time_location_mean": MetricByTimePeriodAndLocationV2Mean,
     "metric_map": MetricMapV2,
 }
+
+
 # ---------- title/text helpers (from your file) ----------
 def title_chart(text: str, width: int = 600, font_size: int = 24, pad: int = 10):
     return (
@@ -68,24 +72,23 @@ def _build_plot_component(backtest, comp: dict, context: dict):
     type = comp.get("type")
     if type == "metric":
         metric_name = comp.get("metric")
-        plot_type = comp.get("plot_type", "bar") # -> Default
+        plot_type = comp.get("plot_type", "bar")  # -> Default
 
         if not metric_name:
             return text_chart("Metric name missing in YAML component.", line_length=60)
-        
+
         metric_cls = available_metrics.get(metric_name)
         if metric_cls is None:
             return text_chart(
-            f"Metric '{metric_name}' not found. "
-            f"Available: {', '.join(sorted(available_metrics.keys()))}",
-            line_length=60,
-        )
+                f"Metric '{metric_name}' not found. Available: {', '.join(sorted(available_metrics.keys()))}",
+                line_length=60,
+            )
 
         obs = context.get("flat_observations")
         fcst = context.get("flat_forecasts")
 
         metric = metric_cls()
-        metric_df = metric.get_metric(obs, fcst)
+        metric_df = metric.get_metric(obs, fcst)  # type: ignore[arg-type]
 
         print("=== METRIC:", metric_name, "PLOT_TYPE:", plot_type, "===")
         print(metric_df.head())
@@ -98,10 +101,11 @@ def _build_plot_component(backtest, comp: dict, context: dict):
                 f"Unknown plot_type '{plot_type}' for metric '{metric_name}'.",
                 line_length=60,
             )
-        plotter = plot_class(metric_df)
+        plotter = plot_class(metric_df)  # type: ignore[abstract]
         return plotter.plot()
-    
+
     return text_chart(f"Unknown plot kind: {type}", line_length=60)
+
 
 # ---------- MAIN: build_from_yaml ----------
 def build_from_yaml(yaml_str: str, backtest, **context):
@@ -194,7 +198,10 @@ class ForecastStub:
         if isinstance(quantiles, Mapping):
             qd = {float(k): (None if quantiles[k] is None else float(quantiles[k])) for k in quantiles}
         elif isinstance(quantiles, (list, tuple, np.ndarray)):
-            qd = {qkeys[i]: (None if quantiles[i] is None else float(quantiles[i])) for i in range(min(len(qkeys), len(quantiles)))}
+            qd = {
+                qkeys[i]: (None if quantiles[i] is None else float(quantiles[i]))
+                for i in range(min(len(qkeys), len(quantiles)))
+            }
         elif isinstance(quantiles, (int, float, np.floating)) or quantiles is None:
             val = None if quantiles is None else float(quantiles)
             qd = {q: val for q in qkeys}
@@ -216,12 +223,14 @@ class BackTestStub:
         self.forecasts = forecasts
         self.dataset = dataset
 
+
 class ObservationStub:
     def __init__(self, period, org_unit, feature_name, value):
-        self.period = period              # e.g. '2023-01-02'
-        self.org_unit = org_unit          # e.g. 'loc1'
+        self.period = period  # e.g. '2023-01-02'
+        self.org_unit = org_unit  # e.g. 'loc1'
         self.feature_name = feature_name  # 'disease_cases'
-        self.value = value                # float/int
+        self.value = value  # float/int
+
 
 # ---------- main ----------
 if __name__ == "__main__":
