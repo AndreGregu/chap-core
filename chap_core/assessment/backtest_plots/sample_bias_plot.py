@@ -81,52 +81,71 @@ class SampleBiasPlot(BacktestPlotBase):
             )
         )
 
+        # Reference line at 0.5: a calibrated model has half of its samples above truth.
+        # Rendered as a dashed rule so a flat line at 0 reads as "strong under-prediction"
+        # against a full [0, 1] scale, rather than as an empty/auto-scaled chart.
+        ref_line = (
+            alt.Chart(pd.DataFrame({"ref": [0.5]}))
+            .mark_rule(color="firebrick", strokeDash=[6, 4], size=1)
+            .encode(y=alt.Y("ref:Q"))
+        )
+
         # By horizon: aggregate by horizon_distance (mean across locations and time periods)
         horizon_df = metric_df.groupby(["horizon_distance"]).agg({"metric": "mean"}).reset_index()
-        horizon_chart = (
+        horizon_bars = (
             alt.Chart(horizon_df)
-            .mark_bar(point=True)
+            .mark_bar()
             .encode(
                 x=alt.X("horizon_distance:O", title="Horizon (periods ahead)"),
-                y=alt.Y("metric:Q", title="Ratio of samples above truth"),
+                y=alt.Y(
+                    "metric:Q",
+                    title="Ratio of samples above truth",
+                    scale=alt.Scale(domain=[0, 1]),
+                ),
                 tooltip=["horizon_distance", "metric"],
             )
-            .properties(
-                width=600,
-                height=400,
-                title={
-                    "text": "Ratio of samples above truth by horizon",
-                    "subtitle": "Ratio (0.0-1.0) of forecast samples > truth. x-axis: forecast horizon distance",
-                    "anchor": "start",
-                    "fontSize": 16,
-                    "subtitleFontSize": 12,
-                },
-            )
+        )
+        horizon_chart = (horizon_bars + ref_line).properties(
+            width=600,
+            height=400,
+            title={
+                "text": "Ratio of samples above truth by horizon",
+                "subtitle": "Ratio (0.0-1.0) of forecast samples > truth; dashed line = 0.5 (unbiased). "
+                "x-axis: forecast horizon distance",
+                "anchor": "start",
+                "fontSize": 16,
+                "subtitleFontSize": 12,
+            },
         )
         charts.append(horizon_chart)
 
         # By time period and location: aggregate by time_period and location (mean across horizons)
         time_df = metric_df.groupby(["time_period", "location"]).agg({"metric": "mean"}).reset_index()
-        time_chart = (
+        time_lines = (
             alt.Chart(time_df)
             .mark_line(point=True)
             .encode(
                 x=alt.X("time_period:O", title="Time period"),
-                y=alt.Y("metric:Q", title="Ratio of samples above truth"),
+                y=alt.Y(
+                    "metric:Q",
+                    title="Ratio of samples above truth",
+                    scale=alt.Scale(domain=[0, 1]),
+                ),
                 color=alt.Color("location:N", title="Location"),
                 tooltip=["time_period", "location", "metric"],
             )
-            .properties(
-                width=600,
-                height=400,
-                title={
-                    "text": "Ratio of samples above truth by time period",
-                    "subtitle": "Ratio (0.0-1.0) of forecast samples > truth. x-axis: time period of observation",
-                    "anchor": "start",
-                    "fontSize": 16,
-                    "subtitleFontSize": 12,
-                },
-            )
+        )
+        time_chart = (time_lines + ref_line).properties(
+            width=600,
+            height=400,
+            title={
+                "text": "Ratio of samples above truth by time period",
+                "subtitle": "Ratio (0.0-1.0) of forecast samples > truth; dashed line = 0.5 (unbiased). "
+                "x-axis: time period of observation",
+                "anchor": "start",
+                "fontSize": 16,
+                "subtitleFontSize": 12,
+            },
         )
         charts.append(time_chart)
 

@@ -88,12 +88,10 @@ def _build_plot_component(backtest, comp: dict, context: dict):
         fcst = context.get("flat_forecasts")
 
         metric = metric_cls()
-        metric_df = metric.get_metric(obs, fcst)  # type: ignore[arg-type]
-
-        print("=== METRIC:", metric_name, "PLOT_TYPE:", plot_type, "===")
-        print(metric_df.head())
-        print(metric_df.columns)
-        print("rows:", len(metric_df))
+        # Detailed (per location/time/horizon) metric values so the plotting classes
+        # can aggregate as needed. get_metric() with no dimensions returns a single
+        # aggregated scalar, which the plots cannot render.
+        metric_df = metric.get_detailed_metric(obs, fcst)  # type: ignore[arg-type]
 
         plot_class = METRIC_PLOT_TYPES.get(plot_type)
         if plot_class is None:
