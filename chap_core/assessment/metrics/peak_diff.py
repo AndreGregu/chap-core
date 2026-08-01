@@ -6,23 +6,21 @@ import re
 
 import pandas as pd
 
+from chap_core.assessment.metrics import metric
 from chap_core.assessment.metrics.base import (
     AggregationOp,
     Metric,
     MetricSpec,
 )
 
-_WEEK_RE = re.compile(r"^(\d{4})-W(\d{2})$")
+_WEEK_RE = re.compile(r"^(\d{4})-?W(\d{2})$")
 _MONTH_RE = re.compile(r"^(\d{4})-(\d{2})$")
 
-_WEEK_RE = re.compile(r"^(\d{4})-W(\d{2})$")
-_MONTH_RE = re.compile(r"^(\d{4})-(\d{2})$")
 
 def _time_index(tp: str) -> int:
     string = str(tp)
 
     index = _WEEK_RE.match(string)
-
     if index:
         year = int(index.group(1))
         week = int(index.group(2))
@@ -37,13 +35,10 @@ def _time_index(tp: str) -> int:
     dt = pd.to_datetime(string)
     return int(dt.to_period("D").ordinal)
 
-    index = _WEEK_RE.match(string)
 
 def _time_diff(tp1: str, tp2: str) -> int:
     return _time_index(tp2) - _time_index(tp1)
 
-def _time_diff(tp1: str, tp2: str) -> int:
-    return _time_index(tp2) - _time_index(tp1)
 
 def _pick_peak(rows: pd.DataFrame, value_col: str) -> tuple[str, float]:
     tmp = rows[["time_period", value_col]].copy()
@@ -53,6 +48,7 @@ def _pick_peak(rows: pd.DataFrame, value_col: str) -> tuple[str, float]:
     return str(top["time_period"]), float(top[value_col])
 
 
+@metric()
 class PeakValueDiffMetric(Metric):
     """
     Peak value difference metric.
@@ -112,14 +108,7 @@ class PeakValueDiffMetric(Metric):
         return pd.DataFrame(out_rows, columns=["location", "time_period", "horizon_distance", "metric"])
 
 
-<<<<<<< HEAD
-class PeakPeriodLagMetric(MetricBase):
-    spec = MetricSpec(
-        output_dimensions=(DataDimension.location, DataDimension.time_period, DataDimension.horizon_distance),
-        metric_name="Peak Period Lag",
-        metric_id="peak_period_lag",
-        description="Lag in time periods (weeks for weekly data, months for monthly data) between true and predicted peak (pred - truth), per horizon.",
-=======
+@metric()
 class PeakPeriodLagMetric(Metric):
     """
     Peak period lag metric.
@@ -141,7 +130,6 @@ class PeakPeriodLagMetric(Metric):
         metric_name="Peak Period Lag",
         aggregation_op=AggregationOp.MEAN,
         description="Lag in time periods between true and predicted peak (pred - truth), per horizon",
->>>>>>> upstream/master
     )
 
     def compute_detailed(self, observations: pd.DataFrame, forecasts: pd.DataFrame) -> pd.DataFrame:

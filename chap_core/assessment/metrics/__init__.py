@@ -78,6 +78,7 @@ def _discover_metrics():
         crps_norm,  # noqa: F401
         example_metric,  # noqa: F401
         mae,  # noqa: F401
+        peak_diff,  # noqa: F401
         percentile_coverage,  # noqa: F401
         rmse,  # noqa: F401
         test_metrics,  # noqa: F401
