@@ -100,7 +100,7 @@ def _build_plot_component(backtest, comp: dict, context: dict):
                 line_length=60,
             )
         plotter = plot_class(metric_df)  # type: ignore[abstract]
-        return plotter.plot()
+        return plotter.plot(title=comp.get("title"))
 
     return text_chart(f"Unknown plot kind: {type}", line_length=60)
 

@@ -23,7 +23,9 @@ class MetricPlotV2(abc.ABC):
     def __init__(self, metric_data: pd.DataFrame, geojson: Optional[dict] = None):
         self._metric_data = metric_data
 
-    def plot(self, title="Mean metric by horizon") -> alt.Chart:
+    def plot(self, title: Optional[str] = None) -> alt.Chart:
+        if title is None:
+            return self.plot_from_df()
         return self.plot_from_df(title=title)
 
     @abc.abstractmethod
